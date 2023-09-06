@@ -1,0 +1,71 @@
+<?php
+/*
+Plugin Name: Batch Page Creator from JSON
+Description: Plugin to create WordPress pages from a JSON structure through an admin page.
+Version: 1.0
+Author: Lucuma Agency
+*/
+
+// Función para verificar si una página con un título específico ya existe
+function page_exists_by_title($title) {
+    global $wpdb;
+    $page = $wpdb->get_var($wpdb->prepare("SELECT ID FROM $wpdb->posts WHERE post_title = %s AND post_type = 'page'", $title));
+    return $page;
+}
+
+// Función para crear páginas basadas en el JSON proporcionado
+function create_pages_from_json() {
+    $json_data = '[
+        //json
+    ]';
+
+    $data = json_decode($json_data, true);
+
+    foreach ($data as $category) {
+        $category_title = $category['category'];
+        
+        // Crear la página de categoría si no existe
+        if (!page_exists_by_title($category_title)) {
+            $category_id = wp_insert_post(array(
+                'post_title' => $category_title,
+                'post_status' => 'publish',
+                'post_type' => 'page'
+            ));
+        } else {
+            $category_id = page_exists_by_title($category_title);
+        }
+
+        // Crear las páginas de servicios bajo esa categoría
+        foreach ($category['services'] as $service) {
+            if (!page_exists_by_title($service)) {
+                wp_insert_post(array(
+                    'post_title' => $service,
+                    'post_status' => 'publish',
+                    'post_type' => 'page',
+                    'post_parent' => $category_id
+                ));
+            }
+        }
+    }
+}
+
+// Añade una opción de menú en el panel de administración
+function batch_page_creator_menu() {
+    add_menu_page('Batch Page Creator', 'Batch Page Creator', 'manage_options', 'batch-page-creator', 'batch_page_creator_admin_page');
+}
+
+add_action('admin_menu', 'batch_page_creator_menu');
+
+// Contenido de la página de administración
+function batch_page_creator_admin_page() {
+    echo '<h2>Batch Page Creator</h2>';
+
+    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+        create_pages_from_json();
+        echo '<p>Páginas creadas exitosamente.</p>';
+    }
+
+    echo '<form method="post">';
+    echo '<input type="submit" value="Crear páginas">';
+    echo '</form>';
+}
